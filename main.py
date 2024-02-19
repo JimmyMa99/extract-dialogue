@@ -4,7 +4,15 @@ from kor.nodes import Object, Text, Number
 import tiktoken
 import json, time
 from tqdm import tqdm
+import argparse
 enc = tiktoken.get_encoding("cl100k_base")
+
+def get_args():
+    parser = argparse.ArgumentParser(description='extract-dialogue')
+    parser.add_argument('--path', type=str, default='')
+    parser.add_argument('--roles', type=lambda s: s.split(','), default=['猪刚鬣','八戒','猪八戒','悟能','天蓬元帅','呆子'])
+
+    return parser.parse_args()
 
 schema = Object(
     id="script",
@@ -85,9 +93,9 @@ def get_chunk(text):
 
 
 def run(chains, text):
-    max_attempts = 3  # 最大尝试次数
+    max_attempts = 5  # 最大尝试次数
     current_attempt = 1
-    while current_attempt < max_attempts:
+    while current_attempt <= max_attempts:
         try:
             response = chains.run(text)
         except Exception as e:
@@ -135,27 +143,33 @@ def generate_dataset(data, roles):
     return res
 
 
-#####################################################
-# CONFIG
-path = 'test.txt'  # 小说路径
-roles = ['克莱恩', '小克']  # 要提取的角色名称
+def main(args):
+    #####################################################
+    # CONFIG
+    path = args.path  # 小说路径
+    roles = args.roles  # 要提取的角色名称
 
-# CODE
-# 1、从小说中提取对话数据集，并将jsonl文件存入output目录
-llm = OpenAI_LLM()
-chain = create_extraction_chain(llm, schema)
-chunk_list = get_chunk(read_text(path))
-print('======================================抽取对话======================================')
-for i in tqdm(range(len(chunk_list))):
-    try:
-        run(chain, chunk_list[i])
-    except Exception as e:
-        print(e)
-# 2、将提取好的对话数据集，改造成微调数据集
-print('======================================抽取完成，构造数据集======================================')
-dialogue_list = read_dialogue(path)
-print(f"共有 {len(dialogue_list)} 条对话样本")
-dataset = generate_dataset(dialogue_list, roles)
-print(f"获得 {len(dataset)} 条微调样本")
-save_dataset(path, dataset)
-print('======================================构造完成======================================')
+    # CODE
+    # 1、从小说中提取对话数据集，并将jsonl文件存入output目录
+    llm = OpenAI_LLM()
+    chain = create_extraction_chain(llm, schema)
+    chunk_list = get_chunk(read_text(path))
+    print('======================================抽取对话======================================')
+    for i in tqdm(range(len(chunk_list))):
+        try:
+            run(chain, chunk_list[i])
+        except Exception as e:
+            print(e)
+    # 2、将提取好的对话数据集，改造成微调数据集
+    print('======================================抽取完成，构造数据集======================================')
+    dialogue_list = read_dialogue(path)
+    print(f"共有 {len(dialogue_list)} 条对话样本")
+    dataset = generate_dataset(dialogue_list, roles)
+    print(f"获得 {len(dataset)} 条微调样本")
+    save_dataset(path, dataset)
+    print('======================================构造完成======================================')
+
+if __name__ == '__main__':
+    args=get_args()
+    print(args.roles)
+    main(args)
